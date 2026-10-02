@@ -1,4 +1,7 @@
 dist/
 node_modules/
+public/dashboard/
+master-prompt.md
+todo_2.md
 pnpm-lock.yaml
 

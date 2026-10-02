@@ -10,6 +10,18 @@ export interface CandleVerification {
 export class CandleRepository {
   constructor(private readonly pool: pg.Pool) {}
 
+  async latestOpenTime(
+    instrumentId: string,
+    interval: CandleInterval,
+  ): Promise<number | null> {
+    const result = await this.pool.query<{ open_time: Date | null }>(
+      `SELECT max(open_time) AS open_time FROM candles
+       WHERE instrument_id = $1 AND interval_minutes = $2`,
+      [instrumentId, Number(interval)],
+    );
+    return result.rows[0]?.open_time?.getTime() ?? null;
+  }
+
   async ensureInstrument(symbol: string): Promise<string> {
     await this.pool.query(
       `INSERT INTO instruments (exchange, market_type, symbol)

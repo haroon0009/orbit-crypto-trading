@@ -1,10 +1,10 @@
 # Crypto Futures Bot — TODO
 
-Last updated: 2026-09-30
+Last updated: 2026-10-02
 
-## Current milestone: risk and capital safety
+## Current milestone: operational hardening
 
-Goal: centrally size and approve every trade without exceeding configured capital or portfolio limits.
+Goal: add circuit breakers, observability, recovery procedures, and deployment safeguards.
 
 ### Decisions
 
@@ -78,34 +78,43 @@ Goal: centrally size and approve every trade without exceeding configured capita
 
 ### Milestone 5 — paper trading
 
-- [ ] Consume finalized Bybit candles from the public WebSocket.
-- [ ] Backfill gaps after reconnecting.
-- [ ] Reuse the strategy, risk, sizing, and order-state code from backtesting.
-- [ ] Simulate live fills, fees, slippage, margin, stop-loss, and take-profit.
-- [ ] Persist paper balances, orders, fills, positions, and trades.
-- [ ] Recover paper state after restart.
-- [ ] Add dry-run mode that records plans without changing balances.
-- [ ] Add critical Telegram alerts.
-- [ ] Run a multi-day paper-trading soak test.
+- [x] Consume finalized Bybit candles from the public WebSocket.
+- [x] Backfill gaps after reconnecting.
+- [x] Reuse the strategy, risk, sizing, and order-state code from backtesting.
+- [x] Simulate live fills, fees, slippage, margin, stop-loss, and take-profit.
+- [x] Persist paper balances, orders, fills, positions, and trades.
+- [x] Recover paper state after restart.
+- [x] Add dry-run mode that records plans without changing balances.
+- [x] Add critical Telegram alerts.
+- [x] Run an automated three-day paper-trading replay soak test.
 
 ### Milestone 6 — Bybit testnet execution
 
-- [ ] Wrap the Bybit SDK/API behind the exchange adapter.
-- [ ] Load and cache instrument metadata.
-- [ ] Add centralized API rate-limit handling.
-- [ ] Submit idempotent orders using deterministic client order IDs.
-- [ ] Process private order, fill, position, and wallet streams.
-- [ ] Handle rejected, partially filled, cancelled, and unknown orders.
-- [ ] Create exchange-native reduce-only protective orders.
-- [ ] Close the filled position if stop-loss creation fails.
-- [ ] Reconcile balances, orders, fills, and positions at startup/reconnect.
-- [ ] Prevent trading until reconciliation and readiness checks pass.
-- [ ] Test crash recovery during each order state.
+- [x] Wrap the Bybit SDK/API behind the exchange adapter.
+- [x] Load and cache instrument metadata.
+- [x] Add centralized API rate-limit handling.
+- [x] Submit idempotent orders using deterministic client order IDs.
+- [x] Process private order, fill, position, and wallet streams.
+- [x] Handle rejected, partially filled, cancelled, and unknown orders.
+- [x] Create exchange-native reduce-only protective orders.
+- [x] Close the filled position if stop-loss creation fails.
+- [x] Reconcile balances, orders, fills, and positions at startup/reconnect.
+- [x] Prevent trading until reconciliation and readiness checks pass.
+- [x] Test crash recovery during each order state.
 
 ### Milestone 7 — operational hardening
 
-- [ ] Add strategy assignments per exchange, symbol, and timeframe.
-- [ ] Add strategy/config versioning.
+- [x] Add a React Router dashboard with shadcn/ui components.
+- [x] Stream forming Bybit candles to the dashboard through the backend.
+- [x] Keep live chart candles transient and reserve stored history for backtests.
+- [x] Add historical ticker/timeframe import controls to the BackTest page.
+- [x] Move historical imports and strategy backtests to BullMQ workers.
+- [x] Add per-dataset resync through the latest completed candle.
+- [x] Add strategy assignments per exchange, symbol, and timeframe.
+- [x] Add strategy/config versioning.
+- [x] Separate strategy lifecycle management from full bot CRUD.
+- [x] Align bot/backtest options and derive ticker timeframes from downloaded data.
+- [x] Separate backtest/live analytics and add detailed run charts and trade logs.
 - [ ] Add stale-data and exchange-divergence circuit breakers.
 - [ ] Add manual kill switch and explicit live-mode confirmation.
 - [ ] Add health/readiness checks, metrics, dashboards, and alerts.
@@ -123,8 +132,8 @@ Goal: centrally size and approve every trade without exceeding configured capita
 - [ ] Lower-timeframe intrabar simulation.
 - [ ] Partial take profits and trailing stops.
 - [ ] Multiple simultaneous strategies per symbol.
-- [ ] Frontend dashboard.
-- [ ] Redis, queues, TimescaleDB, ClickHouse, microservices, or Kubernetes.
+- [ ] Interactive strategy configuration and trade controls in the dashboard.
+- [ ] TimescaleDB, ClickHouse, microservices, or Kubernetes.
 
 ## Completed historical foundation checks
 
@@ -144,3 +153,25 @@ Goal: centrally size and approve every trade without exceeding configured capita
 - [x] Fees, adverse slippage, and end-of-data closure are explicit configuration.
 - [x] Run configuration and the exact candle dataset hash are persisted.
 - [x] A known two-trade fixture produces the expected PnL and drawdown.
+
+## Completed paper-trading checks
+
+- [x] Finalized live candles are stored once and reconnect gaps are backfilled.
+- [x] Backtesting and paper trading share fill, fee, slippage, and protective-exit rules.
+- [x] Paper balances, orders, fills, positions, and trades persist atomically per candle.
+- [x] Pending orders and open positions recover after restart.
+- [x] Capital reservations reconcile after a crash and never exceed current balance.
+- [x] Dry-run plans persist without changing balances or opening positions.
+- [x] Critical risk and stop-loss events can emit Telegram alerts.
+- [x] A three-day finalized-candle replay survives daily restarts with unchanged state.
+
+## Completed Bybit testnet checks
+
+- [x] All authenticated REST calls are signed and restricted to Bybit testnet.
+- [x] Private order, execution, position, and wallet events trigger serialized reconciliation.
+- [x] Wallet, orders, fills, and positions are reconciled before readiness is enabled.
+- [x] Partial fills receive full-position exchange-native stop-loss and take-profit protection.
+- [x] Protection failure writes recovery state before submitting a reduce-only emergency close.
+- [x] Rejected, cancelled, missing, and unknown orders cannot be resubmitted unsafely.
+- [x] Planned, submitted, partial, protected, closing, closed, and unknown crash states recover deterministically.
+- [x] Unsupported hedge-mode positions block execution.

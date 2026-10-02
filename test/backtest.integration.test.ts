@@ -9,6 +9,7 @@ import { createPool } from "../src/db/pool.js";
 import type { Signal } from "../src/domain/trading.js";
 import type { Candle } from "../src/market-data/candle.js";
 import { BacktestRepository } from "../src/persistence/backtests.js";
+import { loadBacktestDetail } from "../src/ui/dashboard.js";
 import type { Strategy } from "../src/strategies/strategy.js";
 
 const databaseUrl =
@@ -128,6 +129,10 @@ describe("deterministic backtest", () => {
       equity: "3",
       decisions: "2",
     });
+    const detail = await loadBacktestDetail(pool, result.runId);
+    assert.equal(detail?.trades.length, 2);
+    assert.equal(detail?.equity.length, 3);
+    assert.equal(detail?.riskDecisions.length, 2);
     await pool.query("DELETE FROM backtest_runs WHERE id = $1", [result.runId]);
   });
 

@@ -4,17 +4,22 @@ import { Decimal } from "decimal.js";
 
 import type {
   Account,
-  Direction,
   ExitReason,
-  Fill,
   Order,
   Position,
-  Side,
   Signal,
   Trade,
 } from "../domain/trading.js";
 import type { Candle, CandleInterval } from "../market-data/candle.js";
 import type { Strategy } from "../strategies/strategy.js";
+import {
+  adversePrice,
+  fee,
+  markEquity,
+  protectiveExit,
+  sideFor,
+  simulatedTrade,
+} from "../execution/simulation.js";
 import {
   evaluateRisk,
   type InstrumentRules,
@@ -76,36 +81,6 @@ export interface BacktestInput {
 interface PendingEntry {
   order: Order;
   signal: Signal;
-}
-
-function adversePrice(price: Decimal, side: Side, slippageBps: Decimal) {
-  const adjustment = slippageBps.div(10_000);
-  return side === "BUY"
-    ? price.mul(new Decimal(1).plus(adjustment))
-    : price.mul(new Decimal(1).minus(adjustment));
-}
-
-function fee(price: Decimal, quantity: Decimal, rate: Decimal) {
-  return price.mul(quantity).abs().mul(rate);
-}
-
-function markEquity(
-  balance: Decimal,
-  position: Position | null,
-  close: string,
-  quantity: Decimal,
-) {
-  if (!position) return balance;
-  const unrealized =
-    position.direction === "LONG"
-      ? new Decimal(close).minus(position.entry.price).mul(quantity)
-      : new Decimal(position.entry.price).minus(close).mul(quantity);
-  return balance.plus(unrealized);
-}
-
-function sideFor(direction: Direction, closing = false): Side {
-  if (direction === "LONG") return closing ? "SELL" : "BUY";
-  return closing ? "BUY" : "SELL";
 }
 
 function validateConfig(config: BacktestConfig): void {
@@ -218,38 +193,16 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     reason: ExitReason,
     type: Order["type"],
   ): Trade => {
-    const side = sideFor(current.direction, true);
-    const quantity = new Decimal(current.quantity);
-    const exitFee = fee(price, quantity, feeRate);
-    const entryPrice = new Decimal(current.entry.price);
-    const grossPnl =
-      current.direction === "LONG"
-        ? price.minus(entryPrice).mul(quantity)
-        : entryPrice.minus(price).mul(quantity);
-    balance = balance.plus(grossPnl).minus(exitFee);
-    reservedCapital = reservedCapital.minus(current.reservedCapital);
-    const exit: Fill = {
-      orderId: `${timestamp}-${type}-${side}`,
-      side,
-      price: price.toString(),
-      quantity: quantity.toString(),
-      fee: exitFee.toString(),
+    const trade = simulatedTrade(
+      current,
+      price,
       timestamp,
-    };
-    const fees = new Decimal(current.entry.fee).plus(exitFee);
-
-    const trade: Trade = {
-      direction: current.direction,
-      quantity: current.quantity,
-      entry: current.entry,
-      exit,
-      stopLoss: current.stopLoss,
-      takeProfit: current.takeProfit,
-      grossPnl: grossPnl.toString(),
-      fees: fees.toString(),
-      netPnl: grossPnl.minus(fees).toString(),
-      exitReason: reason,
-    };
+      reason,
+      type,
+      feeRate,
+    );
+    balance = balance.plus(trade.grossPnl).minus(trade.exit.fee);
+    reservedCapital = reservedCapital.minus(current.reservedCapital);
     const day = new Date(timestamp).toISOString().slice(0, 10);
     dailyPnl.set(day, (dailyPnl.get(day) ?? new Decimal(0)).plus(trade.netPnl));
     return trade;
@@ -266,44 +219,15 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     }
 
     if (position) {
-      const stop = new Decimal(position.stopLoss);
-      const target = new Decimal(position.takeProfit);
-      const open = new Decimal(candle.open);
-      const high = new Decimal(candle.high);
-      const low = new Decimal(candle.low);
-      const stopHit =
-        position.direction === "LONG" ? low.lte(stop) : high.gte(stop);
-      const targetHit =
-        position.direction === "LONG" ? high.gte(target) : low.lte(target);
-
-      if (stopHit) {
-        const stopPrice =
-          position.direction === "LONG"
-            ? Decimal.min(open, stop)
-            : Decimal.max(open, stop);
-        const exitPrice = adversePrice(
-          stopPrice,
-          sideFor(position.direction, true),
-          slippageBps,
-        );
+      const exit = protectiveExit(position, candle, slippageBps);
+      if (exit) {
         trades.push(
           closePosition(
             position,
-            exitPrice,
+            exit.price,
             candle.openTime,
-            "STOP_LOSS",
-            "STOP_MARKET",
-          ),
-        );
-        position = null;
-      } else if (targetHit) {
-        trades.push(
-          closePosition(
-            position,
-            target,
-            candle.openTime,
-            "TAKE_PROFIT",
-            "TAKE_PROFIT",
+            exit.reason,
+            exit.type,
           ),
         );
         position = null;
@@ -313,12 +237,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     if (index < input.candles.length - 1) {
       const account: Account = {
         balance: balance.toString(),
-        equity: markEquity(
-          balance,
-          position,
-          candle.close,
-          new Decimal(position?.quantity ?? 0),
-        ).toString(),
+        equity: markEquity(balance, position, candle.close).toString(),
       };
       const signal = input.strategy.onCandle(candle, { account, position });
       if (signal && !position && !pending) {
@@ -360,12 +279,7 @@ export function runBacktest(input: BacktestInput): BacktestResult {
       position = null;
     }
 
-    const currentEquity = markEquity(
-      balance,
-      position,
-      candle.close,
-      new Decimal(position?.quantity ?? 0),
-    );
+    const currentEquity = markEquity(balance, position, candle.close);
     peakEquity = Decimal.max(peakEquity, currentEquity);
     const drawdown = peakEquity.minus(currentEquity);
     const drawdownPercent = peakEquity.isZero()
