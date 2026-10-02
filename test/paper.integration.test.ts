@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 
+import { Decimal } from "decimal.js";
 import type { Pool } from "pg";
 
 import { migrate } from "../src/db/migrate.js";
@@ -83,6 +84,28 @@ class NoopStrategy implements Strategy {
   readonly version = "1";
   onCandle(): null {
     return null;
+  }
+}
+
+class PaperTrailingStrategy implements Strategy {
+  readonly id = "PAPER_TRAILING";
+  readonly version = "1";
+  private trailRequests = 0;
+
+  onCandle(candle: Readonly<Candle>): Signal | null {
+    return candle.openTime === start
+      ? {
+          direction: "LONG",
+          stopLoss: "90",
+          takeProfit: "200",
+          generatedAt: candle.openTime,
+        }
+      : null;
+  }
+
+  trailingStop(): string | null {
+    this.trailRequests += 1;
+    return this.trailRequests === 1 ? null : "101";
   }
 }
 
@@ -225,6 +248,35 @@ describe("paper trading", () => {
       fills: "0",
       reserved: "0.000000000000000000",
     });
+    await clean(accountKey);
+  });
+
+  it("persists a tightened strategy stop across restart", async () => {
+    const accountKey = `TRAIL-${randomUUID()}`;
+    const strategy = new PaperTrailingStrategy();
+    let trader = await createTrader(accountKey, strategy, config);
+    const trailingCandles: Candle[] = [
+      { open: "100", high: "101", low: "99", close: "100" },
+      { open: "100", high: "105", low: "99", close: "104" },
+      { open: "103", high: "104", low: "102", close: "103" },
+    ].map((prices, index) => ({
+      openTime: start + index * duration,
+      ...prices,
+      volume: "1",
+      turnover: "100",
+    }));
+
+    for (const item of trailingCandles) await trader.onCandle(item);
+    trader = await createTrader(
+      accountKey,
+      new PaperTrailingStrategy(),
+      config,
+    );
+
+    assert.equal(
+      new Decimal(trader.snapshot().position!.stopLoss).eq(101),
+      true,
+    );
     await clean(accountKey);
   });
 

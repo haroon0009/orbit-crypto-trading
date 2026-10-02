@@ -15,7 +15,7 @@ import {
 import { importHistory } from "../market-data/history.js";
 import { BacktestRepository } from "../persistence/backtests.js";
 import { CandleRepository } from "../persistence/candles.js";
-import { EmaCrossStrategy } from "../strategies/ema-cross.js";
+import { createStrategyVersion } from "../strategies/catalog.js";
 
 export const historyQueueName = "historical-data";
 export const backtestQueueName = "backtests";
@@ -29,8 +29,8 @@ export interface HistoryJobData {
 }
 
 export interface BacktestJobData {
-  strategyId: "EMA_CROSS";
-  strategyVersion: "1.0.0";
+  strategyId: string;
+  strategyVersion: string;
   symbol: string;
   interval: CandleInterval;
   start: number;
@@ -169,9 +169,16 @@ async function runHistoryJob(job: Job<HistoryJobData>, pool: pg.Pool) {
 
 async function runBacktestJob(job: Job<BacktestJobData>, pool: pg.Pool) {
   const data = job.data;
-  if (data.strategyId !== "EMA_CROSS" || data.strategyVersion !== "1.0.0") {
-    throw new Error("Unsupported strategy version");
-  }
+  const strategyResult = await pool.query<{
+    configuration: Record<string, unknown>;
+  }>(
+    `SELECT configuration
+     FROM strategy_versions
+     WHERE strategy_id = $1 AND version = $2 AND active`,
+    [data.strategyId, data.strategyVersion],
+  );
+  const storedStrategy = strategyResult.rows[0];
+  if (!storedStrategy) throw new Error("Unsupported strategy version");
   const repository = new CandleRepository(pool);
   const instrumentId = await repository.ensureInstrument(data.symbol);
   const verification = await repository.verify(
@@ -194,12 +201,13 @@ async function runBacktestJob(job: Job<BacktestJobData>, pool: pg.Pool) {
   const leverage = new Decimal(data.leverage);
   const result = runBacktest({
     candles,
-    strategy: new EmaCrossStrategy(
-      20,
-      50,
-      data.stopLossPercent,
-      data.takeProfitPercent,
-    ),
+    strategy: createStrategyVersion({
+      strategyId: data.strategyId,
+      strategyVersion: data.strategyVersion,
+      configuration: storedStrategy.configuration,
+      stopLossPercent: data.stopLossPercent,
+      takeProfitPercent: data.takeProfitPercent,
+    }),
     symbol: data.symbol,
     interval: data.interval,
     config: {

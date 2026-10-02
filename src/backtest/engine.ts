@@ -11,7 +11,7 @@ import type {
   Trade,
 } from "../domain/trading.js";
 import type { Candle, CandleInterval } from "../market-data/candle.js";
-import type { Strategy } from "../strategies/strategy.js";
+import { tightenTrailingStop, type Strategy } from "../strategies/strategy.js";
 import {
   adversePrice,
   fee,
@@ -219,6 +219,12 @@ export function runBacktest(input: BacktestInput): BacktestResult {
     }
 
     if (position) {
+      if (input.strategy.trailingStop) {
+        position = tightenTrailingStop(
+          position,
+          input.strategy.trailingStop(position),
+        );
+      }
       const exit = protectiveExit(position, candle, slippageBps);
       if (exit) {
         trades.push(

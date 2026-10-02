@@ -37,7 +37,7 @@ import type {
   RiskPolicy,
   RiskReason,
 } from "../risk/risk.js";
-import type { Strategy } from "../strategies/strategy.js";
+import { tightenTrailingStop, type Strategy } from "../strategies/strategy.js";
 
 export interface PaperTradingConfig {
   startingBalance: string;
@@ -132,6 +132,7 @@ export class PaperTrader {
     let closedTrade: Trade | undefined;
     let reservedThisCandle: string | undefined;
     let releaseAfterSave: string | undefined;
+    let updatedStopLoss: string | undefined;
     const orders: PaperOrderChange[] = [];
     const fills: Fill[] = [];
     const alerts: string[] = [];
@@ -216,6 +217,16 @@ export class PaperTrader {
     }
 
     if (position) {
+      if (this.input.strategy.trailingStop) {
+        const previousStop = position.stopLoss;
+        position = tightenTrailingStop(
+          position,
+          this.input.strategy.trailingStop(position),
+        );
+        if (position.stopLoss !== previousStop) {
+          updatedStopLoss = position.stopLoss;
+        }
+      }
       const exit = protectiveExit(position, candle, slippage);
       if (exit) {
         const trade = simulatedTrade(
@@ -256,22 +267,17 @@ export class PaperTrader {
       balance: balance.toString(),
       equity: markEquity(balance, position, candle.close).toString(),
     };
-    if (!position && !pending) {
-      const signal = this.input.strategy.onCandle(candle, {
-        account,
-        position,
-      });
-      if (signal) {
-        this.validateSignal(signal, candle);
-        const order: Order = {
-          id: `${candle.openTime}-ENTRY-${sideFor(signal.direction)}`,
-          side: sideFor(signal.direction),
-          type: "MARKET",
-          createdAt: candle.openTime,
-        };
-        pending = { order, signal };
-        orders.push({ order, signal, status: "PENDING" });
-      }
+    const signal = this.input.strategy.onCandle(candle, { account, position });
+    if (signal && !position && !pending) {
+      this.validateSignal(signal, candle);
+      const order: Order = {
+        id: `${candle.openTime}-ENTRY-${sideFor(signal.direction)}`,
+        side: sideFor(signal.direction),
+        type: "MARKET",
+        createdAt: candle.openTime,
+      };
+      pending = { order, signal };
+      orders.push({ order, signal, status: "PENDING" });
     }
 
     const equity = markEquity(balance, position, candle.close).toString();
@@ -285,6 +291,7 @@ export class PaperTrader {
         orders,
         fills,
         ...(openedPosition ? { openedPosition } : {}),
+        ...(updatedStopLoss ? { updatedStopLoss } : {}),
         ...(closedTrade ? { closedTrade } : {}),
       });
     } catch (error) {

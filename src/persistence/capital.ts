@@ -64,7 +64,9 @@ export class CapitalAllocationRepository {
     const result = await this.pool.query(
       `UPDATE capital_allocations
        SET reserved_capital = $2, updated_at = now()
-       WHERE account_key = $1 AND $2 >= 0 AND $2 <= total_capital`,
+       WHERE account_key = $1
+         AND $2::numeric >= 0
+         AND $2::numeric <= total_capital`,
       [accountKey, reservedCapital],
     );
     if (result.rowCount !== 1)

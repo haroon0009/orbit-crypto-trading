@@ -243,7 +243,13 @@ const server = createServer(async (request, response) => {
       if (!Number.isFinite(start) || !Number.isFinite(end))
         throw new Error("Invalid date range");
       validateRange({ symbol, interval, start, end });
-      if (strategyId !== "EMA_CROSS" || strategyVersion !== "1.0.0") {
+      const strategyResult = await pool.query(
+        `SELECT 1
+         FROM strategy_versions
+         WHERE strategy_id = $1 AND version = $2 AND active`,
+        [strategyId, strategyVersion],
+      );
+      if (strategyResult.rowCount !== 1) {
         throw new Error("Unsupported strategy version");
       }
       const numberInputs = [

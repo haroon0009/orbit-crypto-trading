@@ -46,6 +46,7 @@ export interface PaperCandleChanges {
   orders: PaperOrderChange[];
   fills: Fill[];
   openedPosition?: Position;
+  updatedStopLoss?: string;
   closedTrade?: Trade;
 }
 
@@ -271,6 +272,13 @@ export class PaperRepository {
             position.reservedCapital,
             new Date(position.entry.timestamp),
           ],
+        );
+      }
+      if (changes.updatedStopLoss) {
+        await client.query(
+          `UPDATE paper_positions SET stop_loss = $2
+           WHERE account_id = $1 AND status = 'OPEN'`,
+          [accountId, changes.updatedStopLoss],
         );
       }
       if (changes.closedTrade) {

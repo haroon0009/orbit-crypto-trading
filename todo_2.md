@@ -17,3 +17,6 @@ First strategy would be EMA 20 and EMA 50 like follow the trend/momentum where t
 - Difference between live, paper, back testing clear ui and logic
 - Details about the bot and their live data
 - A few things are missing when we activate the bot we should also see the logs and details that how many trades does this bot has made 
+
+
+In the back testing and paper trades also implement the maker/taker/spilage fees as well  
