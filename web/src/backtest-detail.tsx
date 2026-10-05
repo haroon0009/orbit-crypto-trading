@@ -1,9 +1,9 @@
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { BacktestCharts } from "@/components/backtest-charts";
+import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -185,7 +185,7 @@ export function BacktestDetail() {
             Every simulated trade in chronological order.
           </p>
         </div>
-        <Table
+        <DataTable
           headers={[
             "Entry",
             "Exit",
@@ -212,6 +212,9 @@ export function BacktestDetail() {
             `${trade.net_pnl >= 0 ? "+" : ""}$${number.format(trade.net_pnl)}`,
             trade.exit_reason,
           ])}
+          empty="No trades were generated in this run."
+          filterColumn={2}
+          filterLabel="sides"
         />
       </section>
 
@@ -219,7 +222,7 @@ export function BacktestDetail() {
         <div className="border-b p-5">
           <h3 className="font-semibold">Risk decision log</h3>
         </div>
-        <Table
+        <DataTable
           headers={["Time", "Decision", "Reason"]}
           rows={riskDecisions.map((decision) => [
             new Date(decision.occurred_at).toLocaleString(),
@@ -231,6 +234,9 @@ export function BacktestDetail() {
             </Badge>,
             decision.reason_code,
           ])}
+          empty="No risk decisions were recorded."
+          filterColumn={1}
+          filterLabel="decisions"
         />
       </section>
     </div>
@@ -242,43 +248,6 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border bg-card p-4">
       <span className="text-xs text-muted-foreground">{label}</span>
       <strong className="mt-2 block font-mono text-xl">{value}</strong>
-    </div>
-  );
-}
-
-function Table({ headers, rows }: { headers: string[]; rows: ReactNode[][] }) {
-  if (!rows.length)
-    return <p className="p-6 text-sm text-muted-foreground">No records.</p>;
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-xs">
-        <thead>
-          <tr>
-            {headers.map((header) => (
-              <th
-                key={header}
-                className="border-b px-4 py-3 text-muted-foreground whitespace-nowrap"
-              >
-                {header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr key={index} className="border-b last:border-0">
-              {row.map((value, column) => (
-                <td
-                  key={`${index}-${headers[column]}`}
-                  className="px-4 py-3 whitespace-nowrap"
-                >
-                  {value}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }

@@ -13,6 +13,8 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": { "@/*": ["./web/src/*"] },
     "types": ["node"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]

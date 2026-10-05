@@ -169,6 +169,7 @@ async function runHistoryJob(job: Job<HistoryJobData>, pool: pg.Pool) {
 
 async function runBacktestJob(job: Job<BacktestJobData>, pool: pg.Pool) {
   const data = job.data;
+  await job.updateProgress(5);
   const strategyResult = await pool.query<{
     configuration: Record<string, unknown>;
   }>(
@@ -179,6 +180,7 @@ async function runBacktestJob(job: Job<BacktestJobData>, pool: pg.Pool) {
   );
   const storedStrategy = strategyResult.rows[0];
   if (!storedStrategy) throw new Error("Unsupported strategy version");
+  await job.updateProgress(10);
   const repository = new CandleRepository(pool);
   const instrumentId = await repository.ensureInstrument(data.symbol);
   const verification = await repository.verify(
@@ -196,7 +198,7 @@ async function runBacktestJob(job: Job<BacktestJobData>, pool: pg.Pool) {
     data.start,
     data.end,
   );
-  await job.updateProgress(20);
+  await job.updateProgress(25);
   const startingBalance = new Decimal(data.startingBalance);
   const leverage = new Decimal(data.leverage);
   const result = runBacktest({
@@ -235,6 +237,7 @@ async function runBacktestJob(job: Job<BacktestJobData>, pool: pg.Pool) {
       },
     },
   });
+  await job.updateProgress(90);
   await new BacktestRepository(pool).save(result);
   await job.updateProgress(100);
   return { runId: result.runId, metrics: result.metrics };

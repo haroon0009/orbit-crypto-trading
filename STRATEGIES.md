@@ -9,6 +9,9 @@ This file tracks strategy research, implementation, validation, and deployment. 
 - [x] Baseline `EMA_CROSS` strategy implemented for backtesting and paper trading.
 - [x] `EMA_ADX_ATR` version 1.0.0 implemented and registered for backtesting.
 - [x] `DONCHIAN_ATR` version 1.0.0 implemented and registered for backtesting and paper trading.
+- [x] `BB_RSI_MEAN_REVERSION` version 1.0.0 implemented and registered for backtesting and paper trading.
+- [x] `BB_SQUEEZE_BREAKOUT` version 1.0.0 implemented and registered for backtesting and paper trading.
+- [x] `HTF_TREND_PULLBACK` version 1.0.0 implemented and registered for backtesting and paper trading.
 - [ ] No researched swing strategy below is approved for live trading yet.
 
 ## Recommended implementation order
@@ -94,13 +97,14 @@ Candidate rules:
 - Stop 1–1.5 ATR outside the range.
 - Disable on confirmed volatility expansion.
 - Never average down, use martingale sizing, or use grid recovery.
+- Version 1.0.0 uses 20-period, 2-deviation bands; RSI 14 at 30/70; ADX 14 at or below 20; a 1 ATR stop beyond the rejected band; and the middle band as target.
 
 Checklist:
 
-- [ ] Define the range-regime filter and breakout shutdown rule.
-- [ ] Implement the strategy contract.
-- [ ] Add deterministic unit tests, including a trend-regime rejection test.
-- [ ] Add the strategy and configuration version to the database.
+- [x] Define the range-regime filter and breakout shutdown rule.
+- [x] Implement the strategy contract.
+- [x] Add deterministic unit tests, including a trend-regime rejection test.
+- [x] Add the strategy and configuration version to the database.
 - [ ] Stress test crash, breakout, and sustained-trend periods.
 - [ ] Complete walk-forward, cost-stress, paper, and testnet validation.
 
@@ -120,13 +124,14 @@ Candidate rules:
 - Require volume or ATR expansion.
 - Place the stop inside the broken range or 1.5–2 ATR from entry.
 - Trail profitable positions rather than using a small target.
+- Version 1.0.0 defines a squeeze as the bottom 20% of normalized Bollinger bandwidth over 100 observations, requires a 1.2 ATR expansion, uses a 1.5 ATR initial stop, a 2 ATR trail, and a distant 10R safety target.
 
 Checklist:
 
-- [ ] Define squeeze percentile, breakout confirmation, and volume rules.
-- [ ] Implement the strategy contract.
-- [ ] Add deterministic unit tests.
-- [ ] Add the strategy and configuration version to the database.
+- [x] Define squeeze percentile, breakout confirmation, and expansion rules.
+- [x] Implement the strategy contract.
+- [x] Add deterministic unit tests.
+- [x] Add the strategy and configuration version to the database.
 - [ ] Measure false breakouts and performance after fees.
 - [ ] Complete walk-forward, cost-stress, paper, and testnet validation.
 
@@ -146,14 +151,15 @@ Candidate rules:
 - Require momentum to resume before entry.
 - Use an ATR-based stop beyond the pullback structure.
 - Exit at a fixed R multiple, with a trailing stop, or after regime reversal.
+- Version 1.0.0 builds the 4-hour regime only from completed time buckets, uses EMA 20/50 direction with EMA 50 slope, registers a 1-hour EMA 20 pullback, confirms beyond the setup candle within three bars, places the stop beyond structure with a 0.25 ATR buffer and at least 1.5 ATR risk, and targets 2R.
 
 Checklist:
 
-- [ ] Add synchronized multi-timeframe strategy input support.
-- [ ] Define higher-timeframe regime and lower-timeframe entry rules.
-- [ ] Implement the strategy contract.
-- [ ] Add deterministic multi-timeframe tests.
-- [ ] Add the strategy and configuration version to the database.
+- [x] Add synchronized multi-timeframe strategy input support.
+- [x] Define higher-timeframe regime and lower-timeframe entry rules.
+- [x] Implement the strategy contract.
+- [x] Add deterministic multi-timeframe tests.
+- [x] Add the strategy and configuration version to the database.
 - [ ] Complete walk-forward, cost-stress, paper, and testnet validation.
 
 ## Validation gates for every strategy

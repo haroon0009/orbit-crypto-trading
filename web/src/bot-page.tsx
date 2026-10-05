@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { Pencil, Power, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FormSelect } from "@/components/form-select";
 import {
   historicalMarketOptions,
   type HistoricalDatasetOption,
@@ -139,68 +140,58 @@ export function BotManagement() {
         <Field name="name" label="Name" value={defaults.name} />
         <label className="grid gap-1 text-sm">
           Exchange
-          <select
+          <FormSelect
             name="exchange"
             defaultValue={defaults.exchange}
-            className="h-10 rounded-md border bg-background px-3"
-          >
-            <option value="BYBIT">Bybit</option>
-          </select>
+            options={[{ value: "BYBIT", label: "Bybit" }]}
+            ariaLabel="Exchange"
+          />
         </label>
         <label className="grid gap-1 text-sm">
           Ticker
-          <select
+          <FormSelect
             name="symbol"
             value={market?.symbol ?? ""}
-            onChange={(event) => setSelectedSymbol(event.target.value)}
+            onValueChange={setSelectedSymbol}
             disabled={!market}
-            className="h-10 rounded-md border bg-background px-3"
-          >
-            {markets.map((item) => (
-              <option key={item.symbol}>{item.symbol}</option>
-            ))}
-          </select>
+            options={markets.map((item) => ({
+              value: item.symbol,
+              label: item.symbol,
+            }))}
+            ariaLabel="Ticker"
+          />
         </label>
         <label className="grid gap-1 text-sm">
           Time frame
-          <select
+          <FormSelect
             key={market?.symbol}
             name="interval"
             defaultValue={
               market?.intervals.includes(defaults.interval_minutes)
-                ? defaults.interval_minutes
-                : market?.intervals[0]
+                ? String(defaults.interval_minutes)
+                : String(market?.intervals[0] ?? "")
             }
             disabled={!market}
-            className="h-10 rounded-md border bg-background px-3"
-          >
-            {(market?.intervals ?? []).map((interval) => (
-              <option key={interval} value={interval}>
-                {interval} minutes
-              </option>
-            ))}
-          </select>
+            options={(market?.intervals ?? []).map((interval) => ({
+              value: String(interval),
+              label: `${interval} minutes`,
+            }))}
+            ariaLabel="Time frame"
+          />
         </label>
         <label className="grid gap-1 text-sm">
           Strategy
-          <select
+          <FormSelect
             name="strategy"
             required
             defaultValue={`${defaults.strategy_id}:${defaults.strategy_version}`}
-            className="h-10 rounded-md border bg-background px-3"
-          >
-            <option value="" disabled>
-              Select strategy
-            </option>
-            {available.map((strategy) => (
-              <option
-                key={`${strategy.strategy_id}:${strategy.version}`}
-                value={`${strategy.strategy_id}:${strategy.version}`}
-              >
-                {strategy.display_name} v{strategy.version}
-              </option>
-            ))}
-          </select>
+            placeholder="Select strategy"
+            options={available.map((strategy) => ({
+              value: `${strategy.strategy_id}:${strategy.version}`,
+              label: `${strategy.display_name} v${strategy.version}`,
+            }))}
+            ariaLabel="Strategy"
+          />
         </label>
         <Field
           name="totalCapital"

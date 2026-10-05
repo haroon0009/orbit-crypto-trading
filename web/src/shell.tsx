@@ -13,6 +13,9 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { NavLink, Route, Routes, useNavigate } from "react-router";
 
 import { MarketChart } from "@/components/market-chart";
+import { DataTable } from "@/components/data-table";
+import { DatePicker } from "@/components/date-picker";
+import { FormSelect } from "@/components/form-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -20,7 +23,12 @@ import { useDashboard } from "@/dashboard";
 import { BotManagement } from "@/bot-page";
 import { BacktestDetail } from "@/backtest-detail";
 import { Strategies } from "@/strategy-page";
-import { historicalMarketOptions } from "@/market-options";
+import { historicalMarketOptions, historicalStartDate } from "@/market-options";
+import {
+  jobProgressPercent,
+  jobStatusLabel,
+  type JobStatus,
+} from "@/job-status";
 
 const money = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
@@ -31,12 +39,6 @@ const price = new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 });
 interface JobTicket {
   queue: string;
   jobId: string;
-}
-
-interface JobStatus {
-  state: string;
-  result?: Record<string, unknown>;
-  error?: string | null;
 }
 
 async function enqueueJob(url: string, input: Record<string, unknown>) {
@@ -50,13 +52,17 @@ async function enqueueJob(url: string, input: Record<string, unknown>) {
   return body;
 }
 
-async function waitForJob(ticket: JobTicket): Promise<JobStatus> {
+async function waitForJob(
+  ticket: JobTicket,
+  onStatus?: (status: JobStatus) => void,
+): Promise<JobStatus> {
   for (let attempt = 0; attempt < 600; attempt++) {
     const response = await fetch(
       `/api/jobs/${encodeURIComponent(ticket.queue)}/${encodeURIComponent(ticket.jobId)}`,
     );
     const status = (await response.json()) as JobStatus & { error?: string };
     if (!response.ok) throw new Error(status.error ?? "Job status failed");
+    onStatus?.(status);
     if (status.state === "completed") return status;
     if (status.state === "failed")
       throw new Error(status.error ?? "Background job failed");
@@ -105,26 +111,30 @@ export default function Shell() {
           </div>
           <div className="flex items-end gap-2">
             <Control label="Market">
-              <select
+              <FormSelect
                 value={dashboard.symbol}
-                onChange={(event) => dashboard.setSymbol(event.target.value)}
-              >
-                <option>BTCUSDT</option>
-                <option>ETHUSDT</option>
-              </select>
+                onValueChange={dashboard.setSymbol}
+                options={[
+                  { value: "BTCUSDT", label: "BTCUSDT" },
+                  { value: "ETHUSDT", label: "ETHUSDT" },
+                ]}
+                ariaLabel="Market"
+                className="min-w-28"
+              />
             </Control>
             <Control label="Interval">
-              <select
-                value={dashboard.interval}
-                onChange={(event) =>
-                  dashboard.setInterval(Number(event.target.value))
-                }
-              >
-                <option value="5">5m</option>
-                <option value="15">15m</option>
-                <option value="60">1h</option>
-                <option value="240">4h</option>
-              </select>
+              <FormSelect
+                value={String(dashboard.interval)}
+                onValueChange={(value) => dashboard.setInterval(Number(value))}
+                options={[
+                  { value: "5", label: "5m" },
+                  { value: "15", label: "15m" },
+                  { value: "60", label: "1h" },
+                  { value: "240", label: "4h" },
+                ]}
+                ariaLabel="Interval"
+                className="min-w-24"
+              />
             </Control>
             <Button
               variant="outline"
@@ -208,9 +218,7 @@ function Control({ label, children }: { label: string; children: ReactNode }) {
       <span className="text-muted-foreground mb-1 block text-[9px] tracking-wider uppercase">
         {label}
       </span>
-      <span className="border-border bg-secondary block rounded-md border [&_select]:h-9 [&_select]:min-w-24 [&_select]:bg-transparent [&_select]:px-3 [&_select]:text-sm [&_select]:outline-none">
-        {children}
-      </span>
+      <span className="block">{children}</span>
     </label>
   );
 }
@@ -335,7 +343,7 @@ function Dashboard() {
       <Card>
         <PanelTitle eyebrow="ACTIVITY">Recent trades</PanelTitle>
         <CardContent className="p-0">
-          <SimpleTable
+          <DataTable
             headers={[
               "Closed",
               "Timeframe",
@@ -353,6 +361,8 @@ function Dashboard() {
               `${trade.net_pnl >= 0 ? "+" : ""}$${money.format(trade.net_pnl)}`,
             ])}
             empty="No completed paper trades yet."
+            filterColumn={2}
+            filterLabel="sides"
           />
         </CardContent>
       </Card>
@@ -498,9 +508,12 @@ export function Bots() {
               </Field>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Exchange">
-                  <select name="exchange" defaultValue="BYBIT">
-                    <option value="BYBIT">Bybit</option>
-                  </select>
+                  <FormSelect
+                    name="exchange"
+                    defaultValue="BYBIT"
+                    options={[{ value: "BYBIT", label: "Bybit" }]}
+                    ariaLabel="Exchange"
+                  />
                 </Field>
                 <Field label="Ticker">
                   <input
@@ -511,29 +524,31 @@ export function Bots() {
                   />
                 </Field>
                 <Field label="Timeframe">
-                  <select name="interval" defaultValue="15">
-                    <option value="5">5 minutes</option>
-                    <option value="15">15 minutes</option>
-                    <option value="60">1 hour</option>
-                    <option value="240">4 hours</option>
-                  </select>
+                  <FormSelect
+                    name="interval"
+                    defaultValue="15"
+                    options={[
+                      { value: "5", label: "5 minutes" },
+                      { value: "15", label: "15 minutes" },
+                      { value: "60", label: "1 hour" },
+                      { value: "240", label: "4 hours" },
+                    ]}
+                    ariaLabel="Timeframe"
+                  />
                 </Field>
                 <Field label="Strategy version">
-                  <select name="strategy" required defaultValue="">
-                    <option value="" disabled>
-                      Select strategy
-                    </option>
-                    {data.strategyVersions
+                  <FormSelect
+                    name="strategy"
+                    required
+                    placeholder="Select strategy"
+                    options={data.strategyVersions
                       .filter((strategy) => strategy.active)
-                      .map((strategy) => (
-                        <option
-                          key={`${strategy.strategy_id}:${strategy.version}`}
-                          value={`${strategy.strategy_id}:${strategy.version}`}
-                        >
-                          {strategy.display_name} · {strategy.version}
-                        </option>
-                      ))}
-                  </select>
+                      .map((strategy) => ({
+                        value: `${strategy.strategy_id}:${strategy.version}`,
+                        label: `${strategy.display_name} · ${strategy.version}`,
+                      }))}
+                    ariaLabel="Strategy version"
+                  />
                 </Field>
                 <Field label="Total capital (USDT)">
                   <input
@@ -692,7 +707,7 @@ function Backtests() {
       <Card>
         <PanelTitle eyebrow="RUNS">Previous backtests</PanelTitle>
         <CardContent className="p-0">
-          <SimpleTable
+          <DataTable
             headers={[
               "Created",
               "Strategy",
@@ -722,6 +737,8 @@ function Backtests() {
               </Button>,
             ])}
             empty="No backtest runs saved yet."
+            filterColumn={1}
+            filterLabel="strategies"
           />
         </CardContent>
       </Card>
@@ -801,22 +818,27 @@ function HistoricalData() {
                 />
               </Field>
               <Field label="Timeframe">
-                <select name="interval" defaultValue="15">
-                  <option value="1">1 minute</option>
-                  <option value="3">3 minutes</option>
-                  <option value="5">5 minutes</option>
-                  <option value="15">15 minutes</option>
-                  <option value="30">30 minutes</option>
-                  <option value="60">1 hour</option>
-                  <option value="240">4 hours</option>
-                  <option value="720">12 hours</option>
-                </select>
+                <FormSelect
+                  name="interval"
+                  defaultValue="15"
+                  options={[
+                    { value: "1", label: "1 minute" },
+                    { value: "3", label: "3 minutes" },
+                    { value: "5", label: "5 minutes" },
+                    { value: "15", label: "15 minutes" },
+                    { value: "30", label: "30 minutes" },
+                    { value: "60", label: "1 hour" },
+                    { value: "240", label: "4 hours" },
+                    { value: "720", label: "12 hours" },
+                  ]}
+                  ariaLabel="Historical data timeframe"
+                />
               </Field>
               <Field label="Start date">
-                <input name="start" type="date" required />
+                <DatePicker name="start" required placeholder="Start date" />
               </Field>
               <Field label="End date (exclusive)">
-                <input name="end" type="date" required />
+                <DatePicker name="end" required placeholder="End date" />
               </Field>
             </div>
             <Button type="submit" disabled={submitting}>
@@ -834,7 +856,7 @@ function HistoricalData() {
       <Card>
         <PanelTitle eyebrow="AVAILABLE DATA">Historical datasets</PanelTitle>
         <CardContent className="p-0">
-          <SimpleTable
+          <DataTable
             headers={["Ticker", "Timeframe", "Candles", "From", "To", ""]}
             rows={(data?.historicalDatasets ?? []).map((dataset) => [
               dataset.symbol,
@@ -857,6 +879,8 @@ function HistoricalData() {
               </Button>,
             ])}
             empty="No historical datasets stored yet."
+            filterColumn={0}
+            filterLabel="tickers"
           />
         </CardContent>
       </Card>
@@ -870,16 +894,31 @@ function NewBacktest() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [selectedSymbol, setSelectedSymbol] = useState("");
+  const [selectedInterval, setSelectedInterval] = useState<number | null>(null);
+  const [job, setJob] = useState<{
+    ticket: JobTicket;
+    status: JobStatus;
+  } | null>(null);
   if (!data) return null;
   const dashboardData = data;
   const markets = historicalMarketOptions(data.historicalDatasets);
   const market =
     markets.find((item) => item.symbol === selectedSymbol) ?? markets[0];
+  const interval =
+    selectedInterval !== null && market?.intervals.includes(selectedInterval)
+      ? selectedInterval
+      : market?.intervals[0];
+  const startDate = historicalStartDate(
+    data.historicalDatasets,
+    market?.symbol ?? "",
+    interval ?? 0,
+  );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
     setMessage(null);
+    setJob(null);
     const form = new FormData(event.currentTarget);
     const strategy = dashboardData.strategyVersions.find(
       (item) => `${item.strategy_id}:${item.version}` === form.get("strategy"),
@@ -891,8 +930,8 @@ function NewBacktest() {
         strategyId: strategy.strategy_id,
         strategyVersion: strategy.version,
       });
-      setMessage(`Backtest queued as ${ticket.jobId}.`);
-      await waitForJob(ticket);
+      setJob({ ticket, status: { state: "waiting", progress: 0 } });
+      await waitForJob(ticket, (status) => setJob({ ticket, status }));
       await refresh();
       navigate("/backtests");
     } catch (error) {
@@ -921,52 +960,55 @@ function NewBacktest() {
           <form className="flex flex-col gap-5" onSubmit={submit}>
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Strategy">
-                <select name="strategy" required defaultValue="">
-                  <option value="" disabled>
-                    Select a strategy
-                  </option>
-                  {data.strategyVersions
+                <FormSelect
+                  name="strategy"
+                  required
+                  placeholder="Select a strategy"
+                  options={data.strategyVersions
                     .filter((strategy) => strategy.active)
-                    .map((strategy) => (
-                      <option
-                        key={`${strategy.strategy_id}-${strategy.version}`}
-                        value={`${strategy.strategy_id}:${strategy.version}`}
-                      >
-                        {strategy.display_name} · {strategy.version}
-                      </option>
-                    ))}
-                </select>
+                    .map((strategy) => ({
+                      value: `${strategy.strategy_id}:${strategy.version}`,
+                      label: `${strategy.display_name} · ${strategy.version}`,
+                    }))}
+                  ariaLabel="Strategy"
+                />
               </Field>
               <Field label="Exchange">
-                <select name="exchange" defaultValue="BYBIT">
-                  <option value="BYBIT">Bybit</option>
-                </select>
+                <FormSelect
+                  name="exchange"
+                  defaultValue="BYBIT"
+                  options={[{ value: "BYBIT", label: "Bybit" }]}
+                  ariaLabel="Exchange"
+                />
               </Field>
               <Field label="Market">
-                <select
+                <FormSelect
                   name="symbol"
                   value={market?.symbol ?? ""}
-                  onChange={(event) => setSelectedSymbol(event.target.value)}
+                  onValueChange={(value) => {
+                    setSelectedSymbol(value);
+                    setSelectedInterval(null);
+                  }}
                   disabled={!market}
-                >
-                  {markets.map((item) => (
-                    <option key={item.symbol}>{item.symbol}</option>
-                  ))}
-                </select>
+                  options={markets.map((item) => ({
+                    value: item.symbol,
+                    label: item.symbol,
+                  }))}
+                  ariaLabel="Market"
+                />
               </Field>
               <Field label="Timeframe">
-                <select
-                  key={market?.symbol}
+                <FormSelect
                   name="interval"
-                  defaultValue={market?.intervals[0]}
+                  value={String(interval ?? "")}
+                  onValueChange={(value) => setSelectedInterval(Number(value))}
                   disabled={!market}
-                >
-                  {(market?.intervals ?? []).map((interval) => (
-                    <option key={interval} value={interval}>
-                      {interval} minutes
-                    </option>
-                  ))}
-                </select>
+                  options={(market?.intervals ?? []).map((item) => ({
+                    value: String(item),
+                    label: `${item} minutes`,
+                  }))}
+                  ariaLabel="Timeframe"
+                />
               </Field>
               <Field label="Total capital (USDT)">
                 <input
@@ -1029,10 +1071,17 @@ function NewBacktest() {
                 />
               </Field>
               <Field label="Start date">
-                <input name="start" type="date" required />
+                <DatePicker
+                  key={`${market?.symbol}-${interval}-${startDate}`}
+                  name="start"
+                  defaultValue={startDate}
+                  min={startDate}
+                  required
+                  placeholder="Start date"
+                />
               </Field>
               <Field label="End date">
-                <input name="end" type="date" required />
+                <DatePicker name="end" required placeholder="End date" />
               </Field>
             </div>
             <p className="text-muted-foreground text-xs leading-5">
@@ -1043,6 +1092,9 @@ function NewBacktest() {
               <FlaskConical data-icon="inline-start" />
               {submitting ? "Running background job…" : "Queue backtest"}
             </Button>
+            {job ? (
+              <BacktestJobStatus ticket={job.ticket} status={job.status} />
+            ) : null}
             {message ? (
               <p className="text-muted-foreground text-xs leading-5">
                 {message}
@@ -1052,6 +1104,55 @@ function NewBacktest() {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+function BacktestJobStatus({
+  ticket,
+  status,
+}: {
+  ticket: JobTicket;
+  status: JobStatus;
+}) {
+  const progress = jobProgressPercent(status);
+  const variant =
+    status.state === "failed"
+      ? "destructive"
+      : status.state === "active"
+        ? "warning"
+        : status.state === "completed"
+          ? "default"
+          : "outline";
+
+  return (
+    <div
+      className="border-border bg-secondary flex flex-col gap-3 border p-4"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold tracking-wide uppercase">
+            Backtest queue
+          </p>
+          <p className="text-muted-foreground mt-1 text-xs">
+            Job {ticket.jobId}
+          </p>
+        </div>
+        <Badge variant={variant}>{jobStatusLabel(status.state)}</Badge>
+      </div>
+      <div className="flex items-center gap-3">
+        <progress
+          className="accent-primary h-2 flex-1"
+          aria-label="Backtest progress"
+          value={progress}
+          max={100}
+        />
+        <span className="min-w-10 text-right text-sm font-semibold tabular-nums">
+          {progress}%
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -1205,7 +1306,7 @@ function BacktestAnalytics() {
       <Card>
         <PanelTitle eyebrow="PERFORMANCE">Run comparison</PanelTitle>
         <CardContent className="p-0">
-          <SimpleTable
+          <DataTable
             headers={[
               "Strategy",
               "Market",
@@ -1225,6 +1326,8 @@ function BacktestAnalytics() {
               percent(run.metrics.maxDrawdownPercent),
             ])}
             empty="Run a backtest to populate analytics."
+            filterColumn={0}
+            filterLabel="strategies"
           />
         </CardContent>
       </Card>
@@ -1289,7 +1392,7 @@ function LiveAnalytics() {
       <Card>
         <PanelTitle eyebrow="LIVE / PAPER">Trade log</PanelTitle>
         <CardContent className="p-0">
-          <SimpleTable
+          <DataTable
             headers={[
               "Closed",
               "Strategy",
@@ -1315,6 +1418,8 @@ function LiveAnalytics() {
               trade.exit_reason,
             ])}
             empty="No live or paper trades have closed yet."
+            filterColumn={1}
+            filterLabel="strategies"
           />
         </CardContent>
       </Card>
@@ -1392,53 +1497,10 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="text-muted-foreground mb-2 block text-[10px] font-semibold tracking-wider uppercase">
         {label}
       </span>
-      <span className="border-input bg-secondary block rounded-md border [&_input]:h-10 [&_input]:w-full [&_input]:bg-transparent [&_input]:px-3 [&_input]:outline-none [&_select]:h-10 [&_select]:w-full [&_select]:bg-transparent [&_select]:px-3 [&_select]:outline-none">
+      <span className="block [&>input:not([type=hidden])]:h-10 [&>input:not([type=hidden])]:w-full [&>input:not([type=hidden])]:rounded-lg [&>input:not([type=hidden])]:border [&>input:not([type=hidden])]:border-input [&>input:not([type=hidden])]:bg-transparent [&>input:not([type=hidden])]:px-3 [&>input:not([type=hidden])]:outline-none">
         {children}
       </span>
     </label>
-  );
-}
-function SimpleTable({
-  headers,
-  rows,
-  empty,
-}: {
-  headers: string[];
-  rows: ReactNode[][];
-  empty: string;
-}) {
-  if (!rows.length) return <Empty>{empty}</Empty>;
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-xs">
-        <thead>
-          <tr>
-            {headers.map((header) => (
-              <th
-                className="text-muted-foreground border-border border-b px-5 py-3 text-[9px] tracking-wider whitespace-nowrap uppercase"
-                key={header}
-              >
-                {header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr className="border-border border-b last:border-0" key={rowIndex}>
-              {row.map((value, index) => (
-                <td
-                  className="px-5 py-4 whitespace-nowrap"
-                  key={`${rowIndex}-${headers[index]}`}
-                >
-                  {value}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   );
 }
 function percent(value: string | undefined) {

@@ -31,6 +31,36 @@ test("strategy catalog creates registered versions and rejects unknown ones", ()
     }).id,
     "DONCHIAN_ATR",
   );
+  assert.equal(
+    createStrategyVersion({
+      strategyId: "BB_RSI_MEAN_REVERSION",
+      strategyVersion: "1.0.0",
+      configuration: {},
+      stopLossPercent: "1",
+      takeProfitPercent: "2",
+    }).id,
+    "BB_RSI_MEAN_REVERSION",
+  );
+  assert.equal(
+    createStrategyVersion({
+      strategyId: "BB_SQUEEZE_BREAKOUT",
+      strategyVersion: "1.0.0",
+      configuration: {},
+      stopLossPercent: "1",
+      takeProfitPercent: "2",
+    }).id,
+    "BB_SQUEEZE_BREAKOUT",
+  );
+  assert.equal(
+    createStrategyVersion({
+      strategyId: "HTF_TREND_PULLBACK",
+      strategyVersion: "1.0.0",
+      configuration: {},
+      stopLossPercent: "1",
+      takeProfitPercent: "2",
+    }).id,
+    "HTF_TREND_PULLBACK",
+  );
   assert.throws(
     () =>
       createStrategyVersion({
